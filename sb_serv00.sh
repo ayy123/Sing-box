@@ -239,6 +239,12 @@ generate_config() {
         "uuid": "$UUID"
       }
     ],
+    "tls": {
+    "enabled": true,
+    "certificate_path": "cert.pem",   // 你的CRT证书路径
+    "key_path": "private.key",                // 你的私钥路径
+    "sni": "yourdomain.com"                            // 可选的SNI（服务器名称指示），通常用域名
+    },
     "transport": {
       "type": "ws",
       "path": "/vmess-argo",
