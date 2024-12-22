@@ -257,19 +257,40 @@ openssl req -new -x509 -days 3650 -key "private.key" -out "cert.pem" -subj "/CN=
   cat > config.json << EOF
 {
   "log": {
-    "access": "/dev/null",
-    "error": "/dev/null",
-    "loglevel": "none"
+    "disabled": true,
+    "level": "info",
+    "timestamp": true
   },
   "inbounds": [
     {
+      "tag": "hysteria-in",
+      "type": "hysteria2",
+      "listen": "$IP",
+      "listen_port": $hy2_port,
+      "users": [
+        {
+          "password": "$UUID"
+        }
+      ],
+      "masquerade": "https://www.bing.com",
+      "ignore_client_bandwidth": false,
+      "tls": {
+        "enabled": true,
+        "alpn": [
+          "h3"
+        ],
+        "certificate_path": "cert.pem",
+        "key_path": "private.key"
+      }
+    },
+    {
       "tag": "vless-reality",
       "protocol": "vless",
-      "port": $vless_port,
+      "port": $VLESS_PORT,
       "settings": {
         "clients": [
           {
-            "id": "${UUID}",
+            "id": "$UUID",
             "flow": "xtls-rprx-vision"
           }
         ],
@@ -288,41 +309,12 @@ openssl req -new -x509 -days 3650 -key "private.key" -out "cert.pem" -subj "/CN=
           "privateKey": "$private_key",
           "publicKey": "$public_key",
           "maxTimeDiff": 0,
-          "shortIds": [
-            ""
-          ]
+          "shortIds": [ "" ]
         }
-      },
-      "sniffing": {
-        "enabled": true,
-        "destOverride": [
-          "http",
-          "tls"
-        ]
       }
     },
     {
-      "tag": "hysteria-in",
-      "type": "hysteria2",
-      "listen": "$IP",
-      "listen_port": $hy2_port,
-      "users": [
-        {
-          "password": "$UUID"
-        }
-      ],
-      "masquerade": "https://bing.com",
-      "tls": {
-        "enabled": true,
-        "alpn": [
-          "h3"
-        ],
-        "certificate_path": "cert.pem",
-        "key_path": "private.key"
-      }
-    },
-    {
-      "tag": "vmess-ws-tls",
+      "tag": "vmess-ws-in",
       "type": "vmess",
       "listen": "::",
       "listen_port": $vmess_port,
@@ -331,24 +323,18 @@ openssl req -new -x509 -days 3650 -key "private.key" -out "cert.pem" -subj "/CN=
           "uuid": "$UUID"
         }
       ],
+      "tls": {
+        "enabled": true,
+        "certificate_path": "cert.pem",
+        "key_path": "private.key"
+      },
       "transport": {
         "type": "ws",
-        "path": "/vmess-argo",
-        "early_data_header_name": "Sec-WebSocket-Protocol",
-        "tls": {
-          "enabled": true,
-          "server_name": "$reym",
-          "certificate_path": "cert.pem",
-          "key_path": "private.key"
-        }
+        "path": "$UUID-vm",
+        "early_data_header_name": "Sec-WebSocket-Protocol"
       }
     }
   ],
-  "dns": {
-    "servers": [
-      "https+local://8.8.8.8/dns-query"
-    ]
-  },
   "outbounds": [
     {
       "type": "direct",
@@ -460,7 +446,7 @@ ISP=$(curl -s --max-time 5 https://speed.cloudflare.com/meta | awk -F\" '{print 
 get_name() { if [ "$HOSTNAME" = "s1.ct8.pl" ]; then SERVER="CT8"; else SERVER=$(echo "$HOSTNAME" | cut -d '.' -f 1); fi; echo "$SERVER"; }
 NAME="$ISP-$(get_name)"
 rm -rf jh.txt
-vl_link="vless://$UUID@$IP:$vless_port?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$reym&fp=chrome&pbk=$public_key&type=tcp&headerType=none#$NAME-reality"
+vl_link="vless://${UUID}@${IP}:${VLESS_PORT}?encryption=none&flow=xtls-rprx-vision&security=reality&sni=www.ups.com&fp=chrome&pbk=${public_key}&type=tcp&headerType=none#$NAME-vless-reality"
 echo "$vl_link" >> jh.txt
 vmws_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"$NAME-vmess-ws\", \"add\": \"$IP\", \"port\": \"$vmess_port\", \"id\": \"$UUID\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"\", \"path\": \"/$UUID-vm?ed=2048\", \"tls\": \"\", \"sni\": \"\", \"alpn\": \"\", \"fp\": \"\"}" | base64 -w0)"
 echo "$vmws_link" >> jh.txt
