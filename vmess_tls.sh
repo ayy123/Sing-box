@@ -23,31 +23,6 @@ export HY2_PORT=${HY2_PORT:-'11228'}
 ps aux | grep $(whoami) | grep -v "sshd\|bash\|grep" | awk '{print $2}' | xargs -r kill -9 > /dev/null 2>&1
 # devil binexec on > /dev/null 2>&1
 
-get_ip() {
-  ip=$(curl -s --max-time 1.5 ipv4.ip.sb)
-  if [ -z "$ip" ]; then
-    ip=$( [[ "$HOSTNAME" =~ ^s([0-9]|[1-2][0-9]|30)\.serv00\.com$ ]] && echo "cache${BASH_REMATCH[1]}.serv00.com" || echo "$HOSTNAME" )
-  else
-    url="https://www.toolsdaquan.com/toolapi/public/ipchecking/$ip/443"
-    response=$(curl -s --location --max-time 3 --request GET "$url" --header 'Referer: https://www.toolsdaquan.com/ipcheck')
-    if [ -z "$response" ] || ! echo "$response" | grep -q '"icmp":"success"'; then
-        accessible=false
-    else
-        accessible=true
-    fi
-    if [ "$accessible" = false ]; then
-        ip=$( [[ "$HOSTNAME" =~ ^s([0-9]|[1-2][0-9]|30)\.serv00\.com$ ]] && echo "cache${BASH_REMATCH[1]}.serv00.com" || echo "$ip" )
-    fi
-  fi
-  echo "$ip"
-}
-
-if [[ "$(get_ip)" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    IP=$(get_ip)
-else
-    IP=$(host "$(get_ip)" | grep "has address" | awk '{print $4}')
-fi
-
 download_and_run_singbox() {
   ARCH=$(uname -m) && DOWNLOAD_DIR="." && mkdir -p "$DOWNLOAD_DIR" && FILE_INFO=()
   if [ "$ARCH" == "arm" ] || [ "$ARCH" == "arm64" ] || [ "$ARCH" == "aarch64" ]; then
@@ -157,11 +132,11 @@ cat > config.json << EOF
         ],
         "tls": {
             "enabled": true,
-            "server_name": "$HOSTNAME",
+            "server_name": "$USERNAME.serv00.net",
             "reality": {
                 "enabled": true,
                 "handshake": {
-                    "server": "$HOSTNAME",
+                    "server": "$USERNAME.serv00.net",
                     "server_port": 443
                 },
                 "private_key": "$private_key",
@@ -241,15 +216,40 @@ fi
 sleep 3
 rm -f "$(basename ${FILE_MAP[web]})"
 }
- 
+
+get_ip() {
+  ip=$(curl -s --max-time 1.5 ipv4.ip.sb)
+  if [ -z "$ip" ]; then
+    ip=$( [[ "$HOSTNAME" =~ ^s([0-9]|[1-2][0-9]|30)\.serv00\.com$ ]] && echo "cache${BASH_REMATCH[1]}.serv00.com" || echo "$HOSTNAME" )
+  else
+    url="https://www.toolsdaquan.com/toolapi/public/ipchecking/$ip/443"
+    response=$(curl -s --location --max-time 3 --request GET "$url" --header 'Referer: https://www.toolsdaquan.com/ipcheck')
+    if [ -z "$response" ] || ! echo "$response" | grep -q '"icmp":"success"'; then
+        accessible=false
+    else
+        accessible=true
+    fi
+    if [ "$accessible" = false ]; then
+        ip=$( [[ "$HOSTNAME" =~ ^s([0-9]|[1-2][0-9]|30)\.serv00\.com$ ]] && echo "cache${BASH_REMATCH[1]}.serv00.com" || echo "$ip" )
+    fi
+  fi
+  echo "$ip"
+}
+
+if [[ "$(get_ip)" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    IP=$(get_ip)
+else
+    IP=$(host "$(get_ip)" | grep "has address" | awk '{print $4}')
+fi
 get_links(){
-ISP=$(curl -s --max-time 1.5 https://speed.cloudflare.com/meta | awk -F\" '{print $26}' | sed -e 's/ /_/g' || echo "0")
+
+ISP=$(curl -s --max-time 5 https://speed.cloudflare.com/meta | awk -F\" '{print $26}' | sed -e 's/ /_/g' || echo "0")
 get_name() { if [ "$HOSTNAME" = "s1.ct8.pl" ]; then SERVER="CT8"; else SERVER=$(echo "$HOSTNAME" | cut -d '.' -f 1); fi; echo "$SERVER"; }
 NAME="$ISP-$(get_name)"
 
 yellow "注意：v2ray或其他软件的跳过证书验证需设置为true,否则hy2或tuic节点可能不通\n"
 cat > list.txt <<EOF
-vless://$UUID@$IP:$VLESS_PORT?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$HOSTNAME&fp=chrome&pbk=$public_key&type=tcp&headerType=none#$NAME-reality
+vless://$UUID@$IP:$VLESS_PORT?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$USERNAME.serv00.net&fp=chrome&pbk=$public_key&type=tcp&headerType=none#$NAME-reality
 
 vmess://$(echo "{ \"v\": \"2\", \"ps\": \"$NAME-vmess-ws-tls\", \"add\": \"$IP\", \"port\": \"$VMESS_PORT\", \"id\": \"$UUID\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"\", \"path\": \"/vmess-tls?ed=2048\", \"tls\": \"tls\", \"sni\": \"\", \"alpn\": \"http/1.1\", \"fp\": \"\"}" | base64 -w0)
 
