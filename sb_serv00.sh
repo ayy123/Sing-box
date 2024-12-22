@@ -525,7 +525,7 @@ cat list.txt
 purple "\n$WORKDIR/list.txt saved successfully"
 purple "Running done!"
 sleep 2
-rm -rf boot.log config.json sb.log core tunnel.yml tunnel.json fake_useragent_0.2.0.json
+#rm -rf boot.log config.json sb.log core tunnel.yml tunnel.json fake_useragent_0.2.0.json
 }
 
 menu() {
