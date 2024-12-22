@@ -79,11 +79,11 @@ generate_config() {
     {
       "tag": "vless-reality",
       "protocol": "vless",
-      "port": ${VLESS_PORT},
+      "port": $VLESS_PORT,
       "settings": {
         "clients": [
           {
-            "id": "${UUID}",
+            "id": "$UUID",
             "flow": "xtls-rprx-vision"
           }
         ],
@@ -99,8 +99,8 @@ generate_config() {
           "serverNames": [
             "www.ups.com"
           ],
-          "privateKey": "${private_key}",
-          "publicKey": "${public_key}",
+          "privateKey": "$private_key",
+          "publicKey": "$public_key",
           "maxTimeDiff": 0,
           "shortIds": [ "" ]
         }
@@ -150,15 +150,15 @@ generate_config() {
           "uuid": "$UUID"
         }
       ],
-      "transport": {
-        "type": "ws",
-        "path": "/vmess-tls",
-        "early_data_header_name": "Sec-WebSocket-Protocol"
-      },
       "tls": {
         "enabled": true,
         "certificate_path": "cert.pem",
         "key_path": "private.key"
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/vmess-tls",
+        "early_data_header_name": "Sec-WebSocket-Protocol"
       }
     }
   ],
@@ -361,7 +361,7 @@ yellow "注意：v2ray或其他软件的跳过证书验证需设置为true,否�
 cat > list.txt <<EOF
 vless://$(echo "{ \"v\": \"2\", \"ps\": \"$NAME-vless-reality\", \"add\": \"$IP\", \"port\": \"$VLESS_PORT\", \"id\": \"$UUID\", \"aid\": \"0\", \"scy\": \"none\", \"net\": \"tcp\", \"type\": \"none\", \"host\": \"\", \"path\": \"/vless-reality\", \"tls\": \"reality\", \"sni\": \"www.ups.com\", \"alpn\": \"\", \"fp\": \"\"}" | base64 -w0)
 
-vmess://$(echo "{ \"v\": \"2\", \"ps\": \"$NAME-vmess-ws-tls\", \"add\": \"$IP\", \"port\": \"$VMESS_PORT\", \"id\": \"$UUID\", \"aid\": \"0\", \"scy\": \"none\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"\", \"path\": \"//vmess-tls?ed=2048\", \"tls\": \"tls\", \"sni\": \"\", \"alpn\": \"\", \"fp\": \"\"}" | base64 -w0)
+vmess://$(echo "{ \"v\": \"2\", \"ps\": \"$NAME-vmess-ws-tls\", \"add\": \"$IP\", \"port\": \"$VMESS_PORT\", \"id\": \"$UUID\", \"aid\": \"0\", \"scy\": \"none\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"\", \"path\": \"/vmess-tls?ed=2048\", \"tls\": \"tls\", \"sni\": \"\", \"alpn\": \"\", \"fp\": \"\"}" | base64 -w0)
 
 vmess://$(echo "{ \"v\": \"2\", \"ps\": \"$NAME-vmess-ws-argo\", \"add\": \"$CFIP\", \"port\": \"$CFPORT\", \"id\": \"$UUID\", \"aid\": \"0\", \"scy\": \"none\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/vmess-argo?ed=2048\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"\"}" | base64 -w0)
 
