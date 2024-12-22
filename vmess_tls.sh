@@ -23,18 +23,99 @@ export HY2_PORT=${HY2_PORT:-'11228'}
 ps aux | grep $(whoami) | grep -v "sshd\|bash\|grep" | awk '{print $2}' | xargs -r kill -9 > /dev/null 2>&1
 # devil binexec on > /dev/null 2>&1
 
+get_ip() {
+  ip=$(curl -s --max-time 1.5 ipv4.ip.sb)
+  if [ -z "$ip" ]; then
+    ip=$( [[ "$HOSTNAME" =~ ^s([0-9]|[1-2][0-9]|30)\.serv00\.com$ ]] && echo "cache${BASH_REMATCH[1]}.serv00.com" || echo "$HOSTNAME" )
+  else
+    url="https://www.toolsdaquan.com/toolapi/public/ipchecking/$ip/443"
+    response=$(curl -s --location --max-time 3 --request GET "$url" --header 'Referer: https://www.toolsdaquan.com/ipcheck')
+    if [ -z "$response" ] || ! echo "$response" | grep -q '"icmp":"success"'; then
+        accessible=false
+    else
+        accessible=true
+    fi
+    if [ "$accessible" = false ]; then
+        ip=$( [[ "$HOSTNAME" =~ ^s([0-9]|[1-2][0-9]|30)\.serv00\.com$ ]] && echo "cache${BASH_REMATCH[1]}.serv00.com" || echo "$ip" )
+    fi
+  fi
+  echo "$ip"
+}
 
-generate_config() {
-  output=$(./"$(basename ${FILE_MAP[web]})" generate reality-keypair)
-  private_key=$(echo "${output}" | awk '/PrivateKey:/ {print $2}')
-  public_key=$(echo "${output}" | awk '/PublicKey:/ {print $2}')
-  echo "${private_key}" > private_key.txt
-  echo "${public_key}" > public_key.txt
+if [[ "$(get_ip)" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    IP=$(get_ip)
+else
+    IP=$(host "$(get_ip)" | grep "has address" | awk '{print $4}')
+fi
 
-  openssl ecparam -genkey -name prime256v1 -out "private.key"
-  openssl req -new -x509 -days 3650 -key "private.key" -out "cert.pem" -subj "/CN=$USERNAME.serv00.net"
+download_and_run_singbox() {
+  ARCH=$(uname -m) && DOWNLOAD_DIR="." && mkdir -p "$DOWNLOAD_DIR" && FILE_INFO=()
+  if [ "$ARCH" == "arm" ] || [ "$ARCH" == "arm64" ] || [ "$ARCH" == "aarch64" ]; then
+      FILE_INFO=("https://github.com/eooce/test/releases/download/arm64/sb web")
+  elif [ "$ARCH" == "amd64" ] || [ "$ARCH" == "x86_64" ] || [ "$ARCH" == "x86" ]; then
+      FILE_INFO=("https://github.com/yonggekkk/Cloudflare_vless_trojan/releases/download/serv00/sb web")
+  else
+      echo "Unsupported architecture: $ARCH"
+      exit 1
+  fi
+declare -A FILE_MAP
+generate_random_name() {
+    local chars=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890
+    local name=""
+    for i in {1..6}; do
+        name="$name${chars:RANDOM%${#chars}:1}"
+    done
+    echo "$name"
+}
 
-  cat > config.json << EOF
+download_with_fallback() {
+    local URL=$1
+    local NEW_FILENAME=$2
+
+    curl -L -sS --max-time 2 -o "$NEW_FILENAME" "$URL" &
+    CURL_PID=$!
+    CURL_START_SIZE=$(stat -c%s "$NEW_FILENAME" 2>/dev/null || echo 0)
+    
+    sleep 1
+    CURL_CURRENT_SIZE=$(stat -c%s "$NEW_FILENAME" 2>/dev/null || echo 0)
+    
+    if [ "$CURL_CURRENT_SIZE" -le "$CURL_START_SIZE" ]; then
+        kill $CURL_PID 2>/dev/null
+        wait $CURL_PID 2>/dev/null
+        wget -q -O "$NEW_FILENAME" "$URL"
+        echo -e "\e[1;32mDownloading $NEW_FILENAME by wget\e[0m"
+    else
+        wait $CURL_PID
+        echo -e "\e[1;32mDownloading $NEW_FILENAME by curl\e[0m"
+    fi
+}
+
+for entry in "${FILE_INFO[@]}"; do
+    URL=$(echo "$entry" | cut -d ' ' -f 1)
+    RANDOM_NAME=$(generate_random_name)
+    NEW_FILENAME="$DOWNLOAD_DIR/$RANDOM_NAME"
+    
+    if [ -e "$NEW_FILENAME" ]; then
+        echo -e "\e[1;32m$NEW_FILENAME already exists, Skipping download\e[0m"
+    else
+        download_with_fallback "$URL" "$NEW_FILENAME"
+    fi
+    
+    chmod +x "$NEW_FILENAME"
+    FILE_MAP[$(echo "$entry" | cut -d ' ' -f 2)]="$NEW_FILENAME"
+done
+wait
+
+output=$(./"$(basename ${FILE_MAP[web]})" generate reality-keypair)
+private_key=$(echo "${output}" | awk '/PrivateKey:/ {print $2}')
+public_key=$(echo "${output}" | awk '/PublicKey:/ {print $2}')
+echo "${private_key}" > private_key.txt
+echo "${public_key}" > public_key.txt
+
+openssl ecparam -genkey -name prime256v1 -out "private.key"
+openssl req -new -x509 -days 3650 -key "private.key" -out "cert.pem" -subj "/CN=$USERNAME.serv00.net"
+
+cat > config.json << EOF
 {
   "log": {
     "disabled": true,
@@ -151,100 +232,16 @@ generate_config() {
   }
 }
 EOF
-}
-
-download_singbox() {
-  ARCH=$(uname -m) && DOWNLOAD_DIR="." && mkdir -p "$DOWNLOAD_DIR" && FILE_INFO=()
-  if [ "$ARCH" == "arm" ] || [ "$ARCH" == "arm64" ] || [ "$ARCH" == "aarch64" ]; then
-      FILE_INFO=("https://github.com/eooce/test/releases/download/arm64/sb web" "https://github.com/eooce/test/releases/download/arm64/bot13 bot" "https://github.com/eooce/test/releases/download/ARM/swith npm")
-  elif [ "$ARCH" == "amd64" ] || [ "$ARCH" == "x86_64" ] || [ "$ARCH" == "x86" ]; then
-      FILE_INFO=("https://github.com/eooce/test/releases/download/freebsd/sb web" "https://github.com/eooce/test/releases/download/freebsd/server bot" "https://github.com/eooce/test/releases/download/freebsd/npm npm")
-  else
-      echo "Unsupported architecture: $ARCH"
-      exit 1
-  fi
-declare -A FILE_MAP
-generate_random_name() {
-    local chars=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890
-    local name=""
-    for i in {1..6}; do
-        name="$name${chars:RANDOM%${#chars}:1}"
-    done
-    echo "$name"
-}
-
-download_with_fallback() {
-    local URL=$1
-    local NEW_FILENAME=$2
-
-    curl -L -sS --max-time 3 -o "$NEW_FILENAME" "$URL" &
-    CURL_PID=$!
-    CURL_START_SIZE=$(stat -c%s "$NEW_FILENAME" 2>/dev/null || echo 0)
-    
-    sleep 1
-
-    CURL_CURRENT_SIZE=$(stat -c%s "$NEW_FILENAME" 2>/dev/null || echo 0)
-    
-    if [ "$CURL_CURRENT_SIZE" -le "$CURL_START_SIZE" ]; then
-        kill $CURL_PID 2>/dev/null
-        wait $CURL_PID 2>/dev/null
-        wget -q -O "$NEW_FILENAME" "$URL"
-        echo -e "\e[1;32mDownloading $NEW_FILENAME by wget\e[0m"
-    else
-        wait $CURL_PID
-        echo -e "\e[1;32mDownloading $NEW_FILENAME by curl\e[0m"
-    fi
-}
-
-for entry in "${FILE_INFO[@]}"; do
-    URL=$(echo "$entry" | cut -d ' ' -f 1)
-    RANDOM_NAME=$(generate_random_name)
-    NEW_FILENAME="$DOWNLOAD_DIR/$RANDOM_NAME"
-    
-    if [ -e "$NEW_FILENAME" ]; then
-        echo -e "\e[1;32m$NEW_FILENAME already exists, Skipping download\e[0m"
-    else
-        download_with_fallback "$URL" "$NEW_FILENAME"
-    fi
-    
-    chmod +x "$NEW_FILENAME"
-    FILE_MAP[$(echo "$entry" | cut -d ' ' -f 2)]="$NEW_FILENAME"
-done
-wait
 
 if [ -e "$(basename ${FILE_MAP[web]})" ]; then
     nohup ./"$(basename ${FILE_MAP[web]})" run -c config.json >/dev/null 2>&1 &
     sleep 2
     pgrep -x "$(basename ${FILE_MAP[web]})" > /dev/null && green "$(basename ${FILE_MAP[web]}) is running" || { red "$(basename ${FILE_MAP[web]}) is not running, restarting..."; pkill -x "$(basename ${FILE_MAP[web]})" && nohup ./"$(basename ${FILE_MAP[web]})" run -c config.json >/dev/null 2>&1 & sleep 2; purple "$(basename ${FILE_MAP[web]}) restarted"; }
 fi
-sleep 2
-rm -f "$(basename ${FILE_MAP[npm]})" "$(basename ${FILE_MAP[web]})" "$(basename ${FILE_MAP[bot]})"
+sleep 3
+rm -f "$(basename ${FILE_MAP[web]})"
 }
  
-get_ip() {
-  ip=$(curl -s --max-time 1.5 ipv4.ip.sb)
-  if [ -z "$ip" ]; then
-    ip=$( [[ "$HOSTNAME" =~ ^s([0-9]|[1-2][0-9]|30)\.serv00\.com$ ]] && echo "cache${BASH_REMATCH[1]}.serv00.com" || echo "$HOSTNAME" )
-  else
-    url="https://www.toolsdaquan.com/toolapi/public/ipchecking/$ip/443"
-    response=$(curl -s --location --max-time 3 --request GET "$url" --header 'Referer: https://www.toolsdaquan.com/ipcheck')
-    if [ -z "$response" ] || ! echo "$response" | grep -q '"icmp":"success"'; then
-        accessible=false
-    else
-        accessible=true
-    fi
-    if [ "$accessible" = false ]; then
-        ip=$( [[ "$HOSTNAME" =~ ^s([0-9]|[1-2][0-9]|30)\.serv00\.com$ ]] && echo "cache${BASH_REMATCH[1]}.serv00.com" || echo "$ip" )
-    fi
-  fi
-  echo "$ip"
-}
-if [[ "$(get_ip)" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    IP=$(get_ip)
-else
-    IP=$(host "$(get_ip)" | grep "has address" | awk '{print $4}')
-fi
-
 get_links(){
 ISP=$(curl -s --max-time 1.5 https://speed.cloudflare.com/meta | awk -F\" '{print $26}' | sed -e 's/ /_/g' || echo "0")
 get_name() { if [ "$HOSTNAME" = "s1.ct8.pl" ]; then SERVER="CT8"; else SERVER=$(echo "$HOSTNAME" | cut -d '.' -f 1); fi; echo "$SERVER"; }
@@ -274,8 +271,7 @@ rm -rf boot.log config.json sb.log core tunnel.yml tunnel.json fake_useragent_0.
 install_singbox() {
     clear
     cd $WORKDIR
-    download_singbox
-    generate_config
+    download_and_run_singbox
     get_links
 }
 install_singbox
