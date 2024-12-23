@@ -242,30 +242,42 @@ else
     IP=$(host "$(get_ip)" | grep "has address" | awk '{print $4}')
 fi
 get_links(){
+    ISP=$(curl -s --max-time 5 https://speed.cloudflare.com/meta | awk -F\" '{print $26}' | sed -e 's/ /_/g' || echo "0")
+    
+    get_name() { 
+        if [ "$HOSTNAME" = "s1.ct8.pl" ]; then 
+            SERVER="CT8"; 
+        else 
+            SERVER=$(echo "$HOSTNAME" | cut -d '.' -f 1); 
+        fi
+        echo "$SERVER"; 
+    }
+    
+    NAME="$ISP-$(get_name)"
 
-ISP=$(curl -s --max-time 5 https://speed.cloudflare.com/meta | awk -F\" '{print $26}' | sed -e 's/ /_/g' || echo "0")
-get_name() { if [ "$HOSTNAME" = "s1.ct8.pl" ]; then SERVER="CT8"; else SERVER=$(echo "$HOSTNAME" | cut -d '.' -f 1); fi; echo "$SERVER"; }
-NAME="$ISP-$(get_name)"
-
-yellow "注意：v2ray或其他软件的跳过证书验证需设置为true,否则hy2或tuic节点可能不通\n"
-cat > list.txt <<EOF
+    yellow "注意：v2ray或其他软件的跳过证书验证需设置为true,否则hy2或tuic节点可能不通\n"
+    
+    cat > list.txt <<EOF
 vless://$UUID@$IP:$VLESS_PORT?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$USERNAME.serv00.net&fp=chrome&pbk=$public_key&type=tcp&headerType=none#$NAME-reality
 
 vmess://$(echo "{ \"v\": \"2\", \"ps\": \"$NAME-vmess-ws-tls\", \"add\": \"$IP\", \"port\": \"$VMESS_PORT\", \"id\": \"$UUID\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"\", \"path\": \"/vmess-tls?ed=2048\", \"tls\": \"tls\", \"sni\": \"\", \"alpn\": \"http/1.1\", \"fp\": \"\"}" | base64 -w0)
 
 hysteria2://$UUID@$IP:$HY2_PORT?sni=www.bing.com&alpn=h3&insecure=1#$NAME-hy2
 EOF
-cat list.txt
-purple "\n$WORKDIR/list.txt saved successfully"
-purple "Running done!"
-yellow "Serv00|ct8老王sing-box一键四协议安装脚本(vmess-ws|vmess-ws-tls(argo)|hysteria2|tuic)\n"
-echo -e "${green}issues反馈：${re}${yellow}https://github.com/eooce/Sing-box/issues${re}\n"
-echo -e "${green}反馈论坛：${re}${yellow}https://bbs.vps8.me${re}\n"
-echo -e "${green}TG反馈群组：${re}${yellow}https://t.me/vps888${re}\n"
-purple "转载请著名出处，请勿滥用\n"
-sleep 3 
-rm -rf boot.log config.json sb.log core tunnel.yml tunnel.json fake_useragent_0.2.0.json
 
+    cat list.txt
+    purple "\n$WORKDIR/list.txt saved successfully"
+    purple "Running done!"
+    
+    yellow "Serv00|ct8修改自老王sing-box一键三协议安装脚本(vless-reality|vmess-ws-tls|hysteria2)\n"
+    
+    echo -e "${green}issues反馈：${re}${yellow}https://github.com/eooce/Sing-box/issues${re}\n"
+    echo -e "${green}反馈论坛：${re}${yellow}https://bbs.vps8.me${re}\n"
+    echo -e "${green}TG反馈群组：${re}${yellow}https://t.me/vps888${re}\n"
+    purple "转载请著名出处，请勿滥用\n"
+    
+    sleep 3 
+    rm -rf boot.log config.json sb.log core tunnel.yml tunnel.json fake_useragent_0.2.0.json
 }
 
 install_singbox() {
